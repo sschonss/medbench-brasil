@@ -33,6 +33,12 @@ const model: ModelResult = {
   label: 'Fixture Model',
   accuracy: 0.8,
   cleanAccuracy: 0.8,
+  ci95: [0.4, 0.97],
+  total: 6,
+  contaminationSplit: {
+    clean: { accuracy: 0.8, n: 6 },
+    contaminated: null,
+  },
   accuracyByEdition: { 'enamed-2026': { accuracy: 0.8, n: 6 } },
   costByScope: { all: estimate, clean: estimate, contaminated: gap },
   costByEdition: { 'enamed-2026': { all: estimate, clean: estimate, contaminated: gap } },

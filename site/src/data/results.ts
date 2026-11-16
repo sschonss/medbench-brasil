@@ -110,7 +110,13 @@ function mergePerSpecialty(
   return out;
 }
 
-function wilsonInterval(successes: number, total: number): [number, number] {
+/**
+ * Intervalo de Wilson 95% para uma proporção. É a mesma fórmula do scorer
+ * (`packages/eval-harness/src/scorer.ts`): no recorte agregado do site o
+ * intervalo precisa ser recalculado no escopo exibido (limpo / contaminado /
+ * todas as edições), não reaproveitado do artefato de uma edição só.
+ */
+export function wilsonInterval(successes: number, total: number): [number, number] {
   if (total === 0) return [0, 0];
   const p = successes / total;
   const z = 1.96;
@@ -118,6 +124,54 @@ function wilsonInterval(successes: number, total: number): [number, number] {
   const center = (p + (z * z) / (2 * total)) / denom;
   const margin = (z * Math.sqrt((p * (1 - p)) / total + (z * z) / (4 * total * total))) / denom;
   return [Math.max(0, center - margin), Math.min(1, center + margin)];
+}
+
+/** Escopos da visão do leaderboard — espelha `ContaminationScope` da UI. */
+export type LeaderboardScope = 'all' | 'clean' | 'contaminated';
+
+export interface ScopedAccuracy {
+  accuracy: number;
+  ci95: [number, number];
+  n: number;
+}
+
+/**
+ * Precisão, IC 95% (Wilson) e n no escopo ativo. Devolve `null` quando o
+ * modelo não tem execuções naquele recorte — a linha some da tabela, como
+ * já acontecia com `pickAccuracy`.
+ */
+export function scopedAccuracy(m: ModelResult, scope: LeaderboardScope): ScopedAccuracy | null {
+  if (scope === 'all') {
+    return { accuracy: m.accuracy, ci95: m.ci95, n: m.total };
+  }
+  const bucket = scope === 'clean' ? m.contaminationSplit.clean : m.contaminationSplit.contaminated;
+  if (!bucket || bucket.n === 0) return null;
+  const successes = Math.round(bucket.accuracy * bucket.n);
+  return {
+    accuracy: bucket.accuracy,
+    ci95: wilsonInterval(successes, bucket.n),
+    n: bucket.n,
+  };
+}
+
+/** Formatação da tabela: um decimal, invariante de locale. */
+export function formatAccuracyPct(accuracy: number): string {
+  return `${(accuracy * 100).toFixed(1)}%`;
+}
+
+export function formatCi95Pct(ci95: [number, number]): string {
+  return `${(ci95[0] * 100).toFixed(1)}–${(ci95[1] * 100).toFixed(1)}`;
+}
+
+/**
+ * A precisão exibida (um decimal) cai fora do IC exibido (um decimal).
+ * Compara o que o leitor vê, não os floats crus.
+ */
+export function displayedAccuracyOutsideCi(accuracy: number, ci95: [number, number]): boolean {
+  const acc = Number((accuracy * 100).toFixed(1));
+  const lo = Number((ci95[0] * 100).toFixed(1));
+  const hi = Number((ci95[1] * 100).toFixed(1));
+  return acc < lo || acc > hi;
 }
 
 function combineArtifacts(artifacts: RawEvaluationArtifact[]): RawEvaluationArtifact {

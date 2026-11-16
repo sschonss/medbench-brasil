@@ -3,7 +3,12 @@ import { Link } from 'react-router-dom';
 
 import { EDITIONS } from '../data/editions';
 import { TIER_LABEL } from '../data/models';
-import type { ModelResult } from '../data/results';
+import {
+  formatAccuracyPct,
+  formatCi95Pct,
+  type ModelResult,
+  scopedAccuracy,
+} from '../data/results';
 import { compareCosts } from '../lib/cost';
 import type { ContaminationScope } from './ContaminationToggle';
 import CostValue from './CostValue';
@@ -12,12 +17,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 type SortKey = 'acc' | 'clean' | 'cont' | 'delta' | 'ci' | 'cobertura' | 'cutoff' | 'pass' | 'cost';
-
-function pickAccuracy(m: ModelResult, scope: ContaminationScope): number | null {
-  if (scope === 'clean') return m.cleanAccuracy;
-  if (scope === 'contaminated') return m.contaminatedAccuracy;
-  return m.accuracy;
-}
 
 function delta(m: ModelResult): number | null {
   if (m.cleanAccuracy === null || m.contaminatedAccuracy === null) return null;
@@ -86,20 +85,20 @@ export default function LeaderboardTable({
   const sortedRows = useMemo(() => {
     const rows = models
       .map((m) => ({
-        acc: pickAccuracy(m, contaminationScope),
         d: delta(m),
         model: m,
         pass: passRatio(m),
+        stats: scopedAccuracy(m, contaminationScope),
       }))
       .filter(
         (
           r,
         ): r is {
-          acc: number;
           d: number | null;
           model: ModelResult;
           pass: ReturnType<typeof passRatio>;
-        } => r.acc !== null,
+          stats: NonNullable<ReturnType<typeof scopedAccuracy>>;
+        } => r.stats !== null,
       );
 
     const mul = sort.dir === 'desc' ? -1 : 1;
@@ -108,7 +107,7 @@ export default function LeaderboardTable({
         case 'cost':
           return 0;
         case 'acc':
-          return row.acc;
+          return row.stats.accuracy;
         case 'clean':
           return row.model.cleanAccuracy ?? -Infinity;
         case 'cont':
@@ -116,9 +115,9 @@ export default function LeaderboardTable({
         case 'delta':
           return row.d ?? -Infinity;
         case 'ci':
-          return row.model.ci95[1] - row.model.ci95[0];
+          return row.stats.ci95[1] - row.stats.ci95[0];
         case 'cobertura':
-          return row.model.total;
+          return row.stats.n;
         case 'cutoff':
           return row.model.trainingCutoff ? Date.parse(row.model.trainingCutoff) : -Infinity;
         case 'pass':
@@ -163,7 +162,7 @@ export default function LeaderboardTable({
               k="ci"
               label="IC 95%"
               sort={sort}
-              tooltip="Faixa plausível da precisão real (Wilson 95%). Faixas sobrepostas = empate estatístico."
+              tooltip="Faixa plausível da precisão real (Wilson 95%) no mesmo recorte da coluna Precisão (limpo, contaminado ou todas as edições). Faixas sobrepostas = empate estatístico."
               onClick={toggleSort}
             />
             <SortableHead
@@ -171,7 +170,7 @@ export default function LeaderboardTable({
               k="cobertura"
               label="Cobertura"
               sort={sort}
-              tooltip="Em quantas provas o modelo rodou, e o total de execuções somadas. A precisão junta todas as edições que o modelo tem, então cobertura diferente significa base de comparação diferente."
+              tooltip="Em quantas provas o modelo rodou, e o n do recorte ativo (limpo, contaminado ou todas as edições). A precisão e o IC usam esse mesmo n."
               onClick={toggleSort}
             />
             <SortableHead
@@ -217,7 +216,7 @@ export default function LeaderboardTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {pageRows.map(({ acc, d, model, pass }, idx) => (
+          {pageRows.map(({ d, model, pass, stats }, idx) => (
             <TableRow key={model.modelId}>
               <TableCell className={`w-12 text-muted-foreground ${PIN_RANK}`}>
                 {start + idx + 1}
@@ -249,12 +248,14 @@ export default function LeaderboardTable({
               </TableCell>
               <TableCell className="text-muted-foreground">{model.provider}</TableCell>
               <TableCell className="text-muted-foreground">{TIER_LABEL[model.tier]}</TableCell>
-              <TableCell className="text-right font-mono">{(acc * 100).toFixed(1)}%</TableCell>
+              <TableCell className="text-right font-mono">
+                {formatAccuracyPct(stats.accuracy)}
+              </TableCell>
               <TableCell className="text-right">
                 <CostValue cost={model.costByScope[contaminationScope]} />
               </TableCell>
               <TableCell className="text-right font-mono text-muted-foreground">
-                {(model.ci95[0] * 100).toFixed(1)}–{(model.ci95[1] * 100).toFixed(1)}
+                {formatCi95Pct(stats.ci95)}
               </TableCell>
               <TableCell className="text-right">
                 <Tooltip>
@@ -263,13 +264,13 @@ export default function LeaderboardTable({
                       {coverage(model).length > 0 ? `${coverage(model).length}×` : '—'}
                       {/* Separador explícito: sem ele o texto copiado (e o
                           leitor de tela) juntam contagem e n em "2×n=501". */}
-                      <span className="text-xs opacity-70"> · n={model.total}</span>
+                      <span className="text-xs opacity-70"> · n={stats.n}</span>
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>
                     {coverage(model).length > 0
-                      ? `${coverage(model).join(' · ')} (${model.total} execuções somadas)`
-                      : `${model.total} execuções; edições não registradas no artefato`}
+                      ? `${coverage(model).join(' · ')} (${stats.n} execuções no recorte exibido)`
+                      : `${stats.n} execuções no recorte exibido; edições não registradas no artefato`}
                   </TooltipContent>
                 </Tooltip>
               </TableCell>
