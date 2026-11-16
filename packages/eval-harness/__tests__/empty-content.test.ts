@@ -51,8 +51,6 @@ describe('contentTrappedInReasoning', () => {
   it('não usa o raciocínio como resposta', () => {
     const reasoning = 'Depois de pensar, a resposta é B.';
     expect(contentTrappedInReasoning('', reasoning)).toBe(true);
-    // O parser acharia B se o harness colasse o reasoning em rawResponse;
-    // o contrato é não fazer isso.
     expect(parseLetter(reasoning)).toBe('B');
     expect(() => assertContentNotTrappedInReasoning('', reasoning)).toThrow(
       EmptyContentWithReasoningError,

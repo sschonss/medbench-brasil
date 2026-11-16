@@ -278,7 +278,6 @@ describe('runEvaluation — retry behavior', () => {
     await vi.runAllTimersAsync();
     const err = await captured;
     expect(err).toBeInstanceOf(EmptyContentWithReasoningError);
-    // 1 tentativa inicial + 3 retries (delays 1s/3s/10s)
     expect(attempts).toBe(4);
   });
 });

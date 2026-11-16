@@ -358,7 +358,6 @@ describe('openAiCompatProvider', () => {
       provider: 'OpenRouter',
     });
     await expect(provider.run(INPUT)).rejects.toBeInstanceOf(EmptyContentWithReasoningError);
-    // Garantia de protocolo: a letra está no raciocínio, mas não é pontuada.
     expect(parseLetter(reasoning)).toBe('B');
   });
 

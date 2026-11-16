@@ -1,13 +1,3 @@
-/**
- * Resposta com `content` vazio e raciocínio noutro campo.
- *
- * A issue #71 documentou o caso (DeepSeek R1 via OpenRouter): a letra certa
- * aparece em `reasoning`, mas o harness gravava `content` vazio e pontuava
- * como resposta em branco. Extrair a letra do raciocínio mudaria o protocolo
- * e exigiria um ADR; aqui a tentativa só falha, para o retry/abort já
- * existente tratar.
- */
-
 export class EmptyContentWithReasoningError extends Error {
   constructor() {
     super(
@@ -34,10 +24,6 @@ function textFromUnknown(value: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Lê o raciocínio separado do `content` em respostas OpenAI-compat
- * (OpenRouter, DeepSeek, etc.). O valor não entra no parser.
- */
 export function readSeparatedReasoning(body: unknown): string | undefined {
   if (!body || typeof body !== 'object') return undefined;
   const root = body as Record<string, unknown>;

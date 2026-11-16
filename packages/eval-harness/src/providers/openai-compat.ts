@@ -105,8 +105,6 @@ export function openAiCompatProvider(opts: OpenAICompatOptions): Provider {
       };
       const rawResponse = body.choices?.[0]?.message?.content ?? '';
       const reasoning = readSeparatedReasoning(body);
-      // Content vazio com reasoning noutro campo não é resposta parseável (#71).
-      // A letra não é extraída do raciocínio; a tentativa falha e o retry decide.
       assertContentNotTrappedInReasoning(rawResponse, reasoning);
       // `finish_reason` é o equivalente OpenAI-compat do `stop_reason` da
       // Anthropic (`stop`, `length`, `content_filter`, ...). Sem ele, uma
