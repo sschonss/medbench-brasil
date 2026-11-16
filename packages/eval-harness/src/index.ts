@@ -1,5 +1,6 @@
 export { observeRequest } from './accounting.js';
 export { type ConsensusError, type ConsensusOptions, findConsensusErrors } from './consensus.js';
+export { contentTrappedInReasoning, EmptyContentWithReasoningError } from './empty-content.js';
 export {
   computeEnadeConcept,
   type EnadeConcept,

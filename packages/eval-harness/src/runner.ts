@@ -5,6 +5,7 @@ import type { ContaminationBasis } from '@precisa-saude/medbench-dataset';
 import { classifyContamination, loadEdition } from '@precisa-saude/medbench-dataset';
 
 import { AccountingPersistenceError, observeRequest } from './accounting.js';
+import { EmptyContentWithReasoningError } from './empty-content.js';
 import { SYSTEM_PROMPT } from './prompt.js';
 import { type RunRecord, scoreRun } from './scorer.js';
 import type { EvaluationResult, Provider, RunConfig } from './types.js';
@@ -111,6 +112,7 @@ const RETRY_DELAYS_MS = [1000, 3000, 10_000];
 
 function isRetryable(err: unknown): boolean {
   if (err instanceof AccountingPersistenceError) return false;
+  if (err instanceof EmptyContentWithReasoningError) return true;
   if (!(err instanceof Error)) return false;
   const name = err.name;
   const msg = err.message;

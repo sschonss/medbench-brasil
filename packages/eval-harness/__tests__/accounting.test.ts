@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AccountingPersistenceError, observeRequest } from '../src/accounting.js';
 import { createRequestLedger } from '../src/cli/accounting.js';
+import { EmptyContentWithReasoningError } from '../src/empty-content.js';
 import { ProviderHttpError } from '../src/providers/_usage.js';
 import { rescoreFromRaw, rescoreFromScored } from '../src/rescore.js';
 import { runEvaluation } from '../src/runner.js';
@@ -126,6 +127,29 @@ describe('observação por tentativa', () => {
       ).rejects.toBeInstanceOf(AccountingPersistenceError);
     },
   );
+
+  it('content vazio com reasoning é tentativa com erro (mesmo caminho do smoke)', async () => {
+    const sink = vi.fn();
+    const trapped = {
+      ...provider,
+      run: async () => ({
+        parsedAnswer: null,
+        rawResponse: '',
+        reasoning: 'A resposta é A.',
+        requestParams: {},
+        timings: { durationMs: 1 },
+        usage,
+      }),
+    };
+    await expect(observeRequest(trapped, input, context, sink)).rejects.toBeInstanceOf(
+      EmptyContentWithReasoningError,
+    );
+    expect(sink.mock.calls[0]![0]).toMatchObject({
+      outcome: 'error',
+      errorType: 'EmptyContentWithReasoningError',
+    });
+    expect(sink.mock.calls[0]![0]).not.toHaveProperty('usage');
+  });
 });
 
 describe('runner, resume e rescore', () => {

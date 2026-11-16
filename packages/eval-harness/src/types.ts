@@ -57,6 +57,7 @@ export interface ProviderResponse {
   attemptId?: string;
   parsedAnswer: QuestionOption | null;
   rawResponse: string;
+  reasoning?: string;
   requestParams: Record<string, unknown>;
   responseMetadata?: ResponseMetadata;
   startedAt?: string;
