@@ -110,7 +110,7 @@ function mergePerSpecialty(
   return out;
 }
 
-function wilsonInterval(successes: number, total: number): [number, number] {
+export function wilsonInterval(successes: number, total: number): [number, number] {
   if (total === 0) return [0, 0];
   const p = successes / total;
   const z = 1.96;
@@ -118,6 +118,43 @@ function wilsonInterval(successes: number, total: number): [number, number] {
   const center = (p + (z * z) / (2 * total)) / denom;
   const margin = (z * Math.sqrt((p * (1 - p)) / total + (z * z) / (4 * total * total))) / denom;
   return [Math.max(0, center - margin), Math.min(1, center + margin)];
+}
+
+export type LeaderboardScope = 'all' | 'clean' | 'contaminated';
+
+export interface ScopedAccuracy {
+  accuracy: number;
+  ci95: [number, number];
+  n: number;
+}
+
+export function scopedAccuracy(m: ModelResult, scope: LeaderboardScope): ScopedAccuracy | null {
+  if (scope === 'all') {
+    return { accuracy: m.accuracy, ci95: m.ci95, n: m.total };
+  }
+  const bucket = scope === 'clean' ? m.contaminationSplit.clean : m.contaminationSplit.contaminated;
+  if (!bucket || bucket.n === 0) return null;
+  const successes = Math.round(bucket.accuracy * bucket.n);
+  return {
+    accuracy: bucket.accuracy,
+    ci95: wilsonInterval(successes, bucket.n),
+    n: bucket.n,
+  };
+}
+
+export function formatAccuracyPct(accuracy: number): string {
+  return `${(accuracy * 100).toFixed(1)}%`;
+}
+
+export function formatCi95Pct(ci95: [number, number]): string {
+  return `${(ci95[0] * 100).toFixed(1)}–${(ci95[1] * 100).toFixed(1)}`;
+}
+
+export function displayedAccuracyOutsideCi(accuracy: number, ci95: [number, number]): boolean {
+  const acc = Number((accuracy * 100).toFixed(1));
+  const lo = Number((ci95[0] * 100).toFixed(1));
+  const hi = Number((ci95[1] * 100).toFixed(1));
+  return acc < lo || acc > hi;
 }
 
 function combineArtifacts(artifacts: RawEvaluationArtifact[]): RawEvaluationArtifact {

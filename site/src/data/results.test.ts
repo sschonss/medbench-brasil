@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { MODELS_METADATA } from './models';
-import { FORA_DO_LEADERBOARD, MODELS } from './results';
+import {
+  displayedAccuracyOutsideCi,
+  FORA_DO_LEADERBOARD,
+  formatAccuracyPct,
+  formatCi95Pct,
+  type LeaderboardScope,
+  MODELS,
+  scopedAccuracy,
+} from './results';
 
 describe('composição do leaderboard', () => {
   it('publica custo por edição de Grok quando os raws comprovam a faixa de contexto', () => {
@@ -61,5 +69,52 @@ describe('fallback pela data de lançamento dos pesos', () => {
       expect(m.trainingCutoff, m.modelId).toBeUndefined();
       expect(m.releaseDateSource, m.modelId).toMatch(/^https:\/\//);
     }
+  });
+});
+
+const SCOPES: LeaderboardScope[] = ['all', 'clean', 'contaminated'];
+
+describe('IC 95% e n no escopo de contaminação', () => {
+  it('no recorte limpo, GPT-6.1 Terra tem 98,0% com n=252 e o ponto cai dentro do IC exibido', () => {
+    const terra = MODELS.find((m) => m.modelId === 'openai/gpt-6.1-terra');
+    expect(terra).toBeDefined();
+    const all = scopedAccuracy(terra!, 'all');
+    const clean = scopedAccuracy(terra!, 'clean');
+    expect(all).not.toBeNull();
+    expect(clean).not.toBeNull();
+
+    expect(formatAccuracyPct(clean!.accuracy)).toBe('98.0%');
+    expect(clean!.n).toBe(252);
+    expect(all!.n).toBe(498);
+    expect(formatCi95Pct(all!.ci95)).toBe('94.4–97.7');
+    expect(displayedAccuracyOutsideCi(clean!.accuracy, all!.ci95)).toBe(true);
+
+    expect(displayedAccuracyOutsideCi(clean!.accuracy, clean!.ci95)).toBe(false);
+    expect(formatCi95Pct(clean!.ci95)).not.toBe(formatCi95Pct(all!.ci95));
+  });
+
+  it('falha se a precisão exibida de qualquer modelo cair fora do IC exibido no recorte', () => {
+    const fora: string[] = [];
+    for (const m of MODELS) {
+      for (const scope of SCOPES) {
+        const stats = scopedAccuracy(m, scope);
+        if (!stats) continue;
+        if (displayedAccuracyOutsideCi(stats.accuracy, stats.ci95)) {
+          fora.push(
+            `${m.modelId} ${scope}: ${formatAccuracyPct(stats.accuracy)} fora de ${formatCi95Pct(stats.ci95)} (n=${stats.n})`,
+          );
+        }
+      }
+    }
+    expect(fora).toEqual([]);
+  });
+
+  it('devolve null quando o modelo não tem execuções no recorte', () => {
+    const soLimpo = MODELS.find(
+      (m) => m.contaminationSplit.clean && !m.contaminationSplit.contaminated,
+    );
+    expect(soLimpo).toBeDefined();
+    expect(scopedAccuracy(soLimpo!, 'contaminated')).toBeNull();
+    expect(scopedAccuracy(soLimpo!, 'clean')).not.toBeNull();
   });
 });
