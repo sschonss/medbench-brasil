@@ -83,15 +83,12 @@ describe('IC 95% e n no escopo de contaminação', () => {
     expect(all).not.toBeNull();
     expect(clean).not.toBeNull();
 
-    // Antes: a visão "Apenas limpas" mostrava 98,0% ao lado do IC de todas
-    // as edições (94,4–97,7, n=498), com o ponto fora do intervalo.
     expect(formatAccuracyPct(clean!.accuracy)).toBe('98.0%');
     expect(clean!.n).toBe(252);
     expect(all!.n).toBe(498);
     expect(formatCi95Pct(all!.ci95)).toBe('94.4–97.7');
     expect(displayedAccuracyOutsideCi(clean!.accuracy, all!.ci95)).toBe(true);
 
-    // Depois: o IC e o n acompanham o recorte limpo.
     expect(displayedAccuracyOutsideCi(clean!.accuracy, clean!.ci95)).toBe(false);
     expect(formatCi95Pct(clean!.ci95)).not.toBe(formatCi95Pct(all!.ci95));
   });

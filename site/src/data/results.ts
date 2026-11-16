@@ -110,12 +110,6 @@ function mergePerSpecialty(
   return out;
 }
 
-/**
- * Intervalo de Wilson 95% para uma proporção. É a mesma fórmula do scorer
- * (`packages/eval-harness/src/scorer.ts`): no recorte agregado do site o
- * intervalo precisa ser recalculado no escopo exibido (limpo / contaminado /
- * todas as edições), não reaproveitado do artefato de uma edição só.
- */
 export function wilsonInterval(successes: number, total: number): [number, number] {
   if (total === 0) return [0, 0];
   const p = successes / total;
@@ -126,7 +120,6 @@ export function wilsonInterval(successes: number, total: number): [number, numbe
   return [Math.max(0, center - margin), Math.min(1, center + margin)];
 }
 
-/** Escopos da visão do leaderboard — espelha `ContaminationScope` da UI. */
 export type LeaderboardScope = 'all' | 'clean' | 'contaminated';
 
 export interface ScopedAccuracy {
@@ -135,11 +128,6 @@ export interface ScopedAccuracy {
   n: number;
 }
 
-/**
- * Precisão, IC 95% (Wilson) e n no escopo ativo. Devolve `null` quando o
- * modelo não tem execuções naquele recorte — a linha some da tabela, como
- * já acontecia com `pickAccuracy`.
- */
 export function scopedAccuracy(m: ModelResult, scope: LeaderboardScope): ScopedAccuracy | null {
   if (scope === 'all') {
     return { accuracy: m.accuracy, ci95: m.ci95, n: m.total };
@@ -154,7 +142,6 @@ export function scopedAccuracy(m: ModelResult, scope: LeaderboardScope): ScopedA
   };
 }
 
-/** Formatação da tabela: um decimal, invariante de locale. */
 export function formatAccuracyPct(accuracy: number): string {
   return `${(accuracy * 100).toFixed(1)}%`;
 }
@@ -163,10 +150,6 @@ export function formatCi95Pct(ci95: [number, number]): string {
   return `${(ci95[0] * 100).toFixed(1)}–${(ci95[1] * 100).toFixed(1)}`;
 }
 
-/**
- * A precisão exibida (um decimal) cai fora do IC exibido (um decimal).
- * Compara o que o leitor vê, não os floats crus.
- */
 export function displayedAccuracyOutsideCi(accuracy: number, ci95: [number, number]): boolean {
   const acc = Number((accuracy * 100).toFixed(1));
   const lo = Number((ci95[0] * 100).toFixed(1));
