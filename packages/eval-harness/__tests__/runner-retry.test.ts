@@ -9,6 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { EmptyContentWithReasoningError } from '../src/empty-content.js';
 import { runEvaluation } from '../src/runner.js';
 import type { Provider, ProviderResponse } from '../src/types.js';
 
@@ -187,5 +188,97 @@ describe('runEvaluation — retry behavior', () => {
     const err = await captured;
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toMatch(/contrato de resposta inválido/);
+  });
+
+  it('retenta content vazio com reasoning e sucede quando o content volta a vir', async () => {
+    let attempts = 0;
+    const provider = makeProvider({
+      async run() {
+        attempts++;
+        if (attempts === 1) {
+          return {
+            parsedAnswer: null,
+            rawResponse: '',
+            reasoning: 'A resposta correta é C.',
+            requestParams: {},
+            timings: { durationMs: 1 },
+          };
+        }
+        return {
+          parsedAnswer: 'C',
+          rawResponse: 'C',
+          requestParams: {},
+          timings: { durationMs: 1 },
+        };
+      },
+    });
+    const { loadEdition } = await import('@precisa-saude/medbench-dataset');
+    const edition = loadEdition('revalida-2025-1');
+    const live = edition.questions.find((q) => !q.annulled && !q.hasImage && !q.hasTable)!;
+    const priorRecords = edition.questions
+      .filter((q) => !q.annulled && !q.hasImage && !q.hasTable && q.id !== live.id)
+      .map((q) => ({
+        correct: false,
+        editionId: 'revalida-2025-1',
+        modelId: 'mock-model',
+        parsed: 'A' as const,
+        questionId: q.id,
+        run: 1,
+      }));
+    const promise = runEvaluation(provider, {
+      concurrency: 1,
+      editions: ['revalida-2025-1'],
+      excludeImages: true,
+      excludeTables: true,
+      priorRecords,
+      runsPerQuestion: 1,
+    });
+    await vi.runAllTimersAsync();
+    const result = await promise;
+    expect(attempts).toBe(2);
+    const scored = result.perQuestion?.find((q) => q.questionId === live.id);
+    expect(scored?.runs[0]?.parsed).toBe('C');
+  });
+
+  it('esgota o retry e aborta se o content continuar vazio com reasoning', async () => {
+    let attempts = 0;
+    const provider = makeProvider({
+      async run() {
+        attempts++;
+        return {
+          parsedAnswer: null,
+          rawResponse: '',
+          reasoning: 'Resposta final: B',
+          requestParams: {},
+          timings: { durationMs: 1 },
+        };
+      },
+    });
+    const { loadEdition } = await import('@precisa-saude/medbench-dataset');
+    const edition = loadEdition('revalida-2025-1');
+    const live = edition.questions.find((q) => !q.annulled && !q.hasImage && !q.hasTable)!;
+    const priorRecords = edition.questions
+      .filter((q) => !q.annulled && !q.hasImage && !q.hasTable && q.id !== live.id)
+      .map((q) => ({
+        correct: false,
+        editionId: 'revalida-2025-1',
+        modelId: 'mock-model',
+        parsed: 'A' as const,
+        questionId: q.id,
+        run: 1,
+      }));
+    const captured = runEvaluation(provider, {
+      concurrency: 1,
+      editions: ['revalida-2025-1'],
+      excludeImages: true,
+      excludeTables: true,
+      priorRecords,
+      runsPerQuestion: 1,
+    }).catch((e: unknown) => e as Error);
+    await vi.runAllTimersAsync();
+    const err = await captured;
+    expect(err).toBeInstanceOf(EmptyContentWithReasoningError);
+    // 1 tentativa inicial + 3 retries (delays 1s/3s/10s)
+    expect(attempts).toBe(4);
   });
 });

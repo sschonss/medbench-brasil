@@ -57,6 +57,11 @@ export interface ProviderResponse {
   attemptId?: string;
   parsedAnswer: QuestionOption | null;
   rawResponse: string;
+  /**
+   * Raciocínio separado do `content` (ex.: `message.reasoning` em rotas
+   * OpenAI-compat). Nunca entra no parser de letra; ver issue #71.
+   */
+  reasoning?: string;
   requestParams: Record<string, unknown>;
   responseMetadata?: ResponseMetadata;
   startedAt?: string;

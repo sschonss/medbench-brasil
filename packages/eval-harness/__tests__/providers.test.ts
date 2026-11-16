@@ -1,11 +1,13 @@
 import type { Question } from '@precisa-saude/medbench-dataset';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { EmptyContentWithReasoningError } from '../src/empty-content.js';
 import { anthropicProvider } from '../src/providers/anthropic.js';
 import { googleProvider } from '../src/providers/google.js';
 import { openAiProvider } from '../src/providers/openai.js';
 import { openAiCompatProvider } from '../src/providers/openai-compat.js';
 import { systemOneProvider } from '../src/providers/systemone.js';
+import { parseLetter } from '../src/runner.js';
 
 const QUESTION: Question = {
   annulled: false,
@@ -342,6 +344,74 @@ describe('openAiCompatProvider', () => {
     await provider.run(INPUT);
 
     expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:11434/v1/chat/completions');
+  });
+  it('falha a tentativa quando content está vazio e reasoning não — sem extrair a letra', async () => {
+    const reasoning = 'Analisei as alternativas e a resposta correta é B.';
+    mockFetchResponse({
+      body: {
+        choices: [{ finish_reason: 'stop', message: { content: '', reasoning } }],
+      },
+    });
+    const provider = openAiCompatProvider({
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'deepseek/deepseek-r1',
+      provider: 'OpenRouter',
+    });
+    await expect(provider.run(INPUT)).rejects.toBeInstanceOf(EmptyContentWithReasoningError);
+    // Garantia de protocolo: a letra está no raciocínio, mas não é pontuada.
+    expect(parseLetter(reasoning)).toBe('B');
+  });
+
+  it('também reconhece message.reasoning_content com content vazio', async () => {
+    mockFetchResponse({
+      body: {
+        choices: [
+          { finish_reason: 'stop', message: { content: '  ', reasoning_content: 'Resposta: C' } },
+        ],
+      },
+    });
+    const provider = openAiCompatProvider({
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'deepseek/deepseek-r1',
+      provider: 'OpenRouter',
+    });
+    await expect(provider.run(INPUT)).rejects.toBeInstanceOf(EmptyContentWithReasoningError);
+  });
+
+  it('preserva content quando ele existe, mesmo com reasoning ao lado', async () => {
+    mockFetchResponse({
+      body: {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { content: 'A resposta é D.', reasoning: 'pensei em B, mas mudei' },
+          },
+        ],
+      },
+    });
+    const provider = openAiCompatProvider({
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'deepseek/deepseek-r1',
+      provider: 'OpenRouter',
+    });
+    const res = await provider.run(INPUT);
+    expect(res.rawResponse).toBe('A resposta é D.');
+    expect(res.reasoning).toBe('pensei em B, mas mudei');
+    expect(parseLetter(res.rawResponse)).toBe('D');
+  });
+
+  it('content vazio sem reasoning continua resposta em branco (não lança)', async () => {
+    mockFetchResponse({
+      body: { choices: [{ finish_reason: 'stop', message: { content: '' } }] },
+    });
+    const provider = openAiCompatProvider({
+      baseUrl: 'https://openrouter.ai/api/v1',
+      model: 'deepseek/deepseek-v4-pro',
+      provider: 'OpenRouter',
+    });
+    const res = await provider.run(INPUT);
+    expect(res.rawResponse).toBe('');
+    expect(res).not.toHaveProperty('reasoning');
   });
 });
 

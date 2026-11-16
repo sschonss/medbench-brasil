@@ -1,3 +1,4 @@
+import { assertContentNotTrappedInReasoning, readSeparatedReasoning } from '../empty-content.js';
 import type { Provider, ProviderResponse, RunInput } from '../types.js';
 import type { ProviderBaseOptions } from './_http.js';
 import { fetchWithTimeout } from './_http.js';
@@ -94,9 +95,19 @@ export function openAiCompatProvider(opts: OpenAICompatOptions): Provider {
         );
       }
       const body = (await res.json()) as {
-        choices?: Array<{ finish_reason?: null | string; message?: { content?: string } }>;
+        choices?: Array<{
+          finish_reason?: null | string;
+          message?: { content?: string; reasoning?: string; reasoning_content?: string };
+          reasoning?: string;
+          reasoning_content?: string;
+        }>;
+        reasoning?: string;
       };
       const rawResponse = body.choices?.[0]?.message?.content ?? '';
+      const reasoning = readSeparatedReasoning(body);
+      // Content vazio com reasoning noutro campo não é resposta parseável (#71).
+      // A letra não é extraída do raciocínio; a tentativa falha e o retry decide.
+      assertContentNotTrappedInReasoning(rawResponse, reasoning);
       // `finish_reason` é o equivalente OpenAI-compat do `stop_reason` da
       // Anthropic (`stop`, `length`, `content_filter`, ...). Sem ele, uma
       // resposta vazia é ambígua entre filtro de conteúdo, truncamento e
@@ -120,6 +131,7 @@ export function openAiCompatProvider(opts: OpenAICompatOptions): Provider {
         ),
         parsedAnswer: null,
         rawResponse,
+        ...(reasoning === undefined ? {} : { reasoning }),
         requestParams,
         ...(stopReason === undefined ? {} : { stopReason }),
         timings: { durationMs },

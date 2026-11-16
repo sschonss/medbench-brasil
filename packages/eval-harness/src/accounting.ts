@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { assertContentNotTrappedInReasoning } from './empty-content.js';
 import { ProviderHttpError } from './providers/_usage.js';
 import type { Provider, ProviderResponse, RequestAttemptRecord, RunInput } from './types.js';
 
@@ -44,6 +45,9 @@ export async function observeRequest(
   let response: ProviderResponse;
   try {
     response = await provider.run(input);
+    // Falha a tentativa antes de gravar sucesso: content vazio + reasoning
+    // não-vazio seria pontuado como resposta em branco (#71).
+    assertContentNotTrappedInReasoning(response.rawResponse, response.reasoning);
   } catch (error) {
     persist(onAttempt, {
       ...base,
